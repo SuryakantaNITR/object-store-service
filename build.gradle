@@ -1,0 +1,89 @@
+buildscript {
+	ext {
+		springBootVersion = '1.5.3.RELEASE'
+	}
+	repositories {
+		mavenCentral()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+	}
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+
+version = '0.0.1'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+	mavenCentral()
+}
+
+dependencyManagement {
+	imports {
+		mavenBom 'org.springframework.cloud:spring-cloud-dependencies:Camden.SR6'
+	}
+}
+
+dependencies {
+	compile('org.springframework.boot:spring-boot-starter-data-mongodb')
+	compile('org.springframework.boot:spring-boot-starter-web')
+	compile('org.springframework.cloud:spring-cloud-starter-eureka')
+	compile('org.springframework.boot:spring-boot-starter-actuator')
+	compile ('org.springframework.cloud:spring-cloud-starter-oauth2')
+	compile ('org.springframework.boot:spring-boot-starter-security')
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+task createFolder{
+  def configDir = new File(project.buildDir.path+"/libs", "config")
+  def logDir = new File(project.buildDir.path+"/libs", "log")
+  def libDir = new File(project.buildDir.path+"/libs", "lib")
+  
+  if(!configDir.exists()) {
+  	configDir.mkdirs()
+  }
+  if(!logDir.exists()){
+  	logDir.mkdirs()
+  }
+  delete libDir
+  libDir.mkdirs()
+}
+
+ //copy config
+task copyConfig(type: Copy) {	
+	into project.buildDir.path+"/libs/config"
+    from "config"
+
+}
+
+//copy dependencies
+task copyRuntimeLibs(type: Copy) {
+	into project.buildDir.path+"/libs/lib"
+	from configurations.compile
+
+}
+
+task bundleAll(type: Jar){
+	dependsOn 'createFolder', 'copyRuntimeLibs', 'copyConfig' 
+
+  	manifest { 
+  		def manifestClasspath = configurations.compile.collect { "lib/" + it.getName() }.join(' ') 
+		attributes 'Implementation-Title': 'object-store', 
+                   'Implementation-Version': version,
+    	           'Main-Class': 'com.innoviti.store.starter.ObjectStoreServiceApplication',
+    			   'Class-Path': manifestClasspath
+  	}  
+  	baseName=project.name
+  from { (configurations.compile - configurations.compile).collect { it.isDirectory() ? it : zipTree(it) } }
+  with jar
+     exclude 'META-INF/*.RSA', 'META-INF/*.SF','META-INF/*.DSA' 
+} 
+
+task zip(type: Zip){
+	dependsOn 'bundleAll'
+	 from 'build/libs'
+}
